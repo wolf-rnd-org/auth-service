@@ -33,6 +33,7 @@ type DbUser = {
 async function findUserByEmail(email: string): Promise<DbUser | undefined> {
   const sql = `SELECT user_id, email, first_name, last_name, password_hash
                FROM users WHERE email = $1`;
+               
   const { rows } = await query<DbUser>(sql, [email]);
   return rows[0];
 }

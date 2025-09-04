@@ -1,27 +1,57 @@
-import 'dotenv/config';
+// src/utils/db.ts
 import { Pool } from 'pg';
+import 'dotenv/config';
 
-
-function sslConfig() {
-  if (process.env.DB_SSL === 'true' || /sslmode=require/i.test(process.env.DATABASE_URL || '')) {
-    return { rejectUnauthorized: false } as const;
-  }
-  return undefined;
+function maskDbUrl(u?: string) {
+  if (!u) return '';
+  try {
+    const url = new URL(u);
+    if (url.password) url.password = '***';
+    return url.toString();
+  } catch { return '<invalid url>'; }
 }
 
-import type { QueryResultRow } from 'pg';
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL, // אם יש
-  ssl: sslConfig(), // <--- פה נכנס התנאי
+const { DATABASE_URL, NODE_ENV } = process.env;
+if (!DATABASE_URL) throw new Error('Missing DATABASE_URL');
+const url = new URL(process.env.DATABASE_URL!.trim());
 
+console.log('[DB] host:', url.hostname, 'port:', url.port);
+
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  // Supabase דורש SSL; למנוע בעיות cert בלוקאל:
+  ssl: { rejectUnauthorized: false },
 });
 
-export async function query<T extends QueryResultRow = any>(text: string, params?: any[]) {
-  const start = Date.now();
-  const res = await pool.query<T>(text, params);
-  const dur = Date.now() - start;
-  if (dur > 200) {
-    console.log(`slow query ${dur}ms: ${text} ${JSON.stringify(params)}`);
+// לוג על שגיאות לא־מטופלות מה-pool
+pool.on('error', (err) => {
+  console.error('[DB] Pool error', err);
+});
+
+export async function query<T = any>(text: string, params?: any[]) {
+  try {
+    // ודאי שמדובר במערך
+    const bind = Array.isArray(params) ? params : (params === undefined ? [] : [params]);
+    const res = await pool.query<T>(text, bind);
+    return res;
+  } catch (err: any) {
+    // לוג עשיר שיעזור לראות מה לא בסדר
+    console.error('[DB] Query failed', {
+      text,
+      params,
+      code: err?.code,
+      detail: err?.detail,
+      message: err?.message,
+      where: err?.where,
+      hint: err?.hint,
+      // stack: err?.stack, // אם תרצי
+    });
+    throw err;
   }
-  return res;
+}
+
+// בדיקת חיבור בזמן עלייה (אופציונלי מאוד מומלץ)
+export async function dbHealthcheck() {
+  const { rows } = await query('select 1 as ok, current_user, current_database(), now()');
+  console.log('[DB] healthcheck', rows[0]);
 }
