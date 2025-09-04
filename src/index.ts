@@ -1,7 +1,9 @@
+// index.ts
 import 'dotenv/config';
 import express from 'express';
-import authRoutes from './src/auth.routes.js';
-import { errorMiddleware } from './src/errors.js';
+import authRoutes from './auth.routes';
+import { errorMiddleware } from './errors';
+
 
 const app = express();
 app.use(express.json({ limit: '1mb' }));

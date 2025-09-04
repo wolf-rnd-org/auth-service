@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { query } from '../utils/db.js';
+import { query } from './utils/db.js';
 import { hashPassword, verifyPassword } from './security.js';
 import { getUserGroups, getUserAppActions } from './permission.query.js';
 import { createOTT } from './ott.store.js';
