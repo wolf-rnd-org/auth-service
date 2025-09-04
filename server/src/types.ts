@@ -8,7 +8,9 @@ export type UserRow = {
   updated_at: string | Date;
 };
 
-export type Group = { group_id: number; group_name: string };
+export type Group = { 
+  group_id: number; group_name: string 
+};
 
 export type AppActions = {
   application_id: number;

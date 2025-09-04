@@ -3,7 +3,6 @@ import { Pool } from 'pg';
 
 
 function sslConfig() {
-  // הפעל SSL רק אם ביקשו מפורשות (למשל בסופבייס)
   if (process.env.DB_SSL === 'true' || /sslmode=require/i.test(process.env.DATABASE_URL || '')) {
     return { rejectUnauthorized: false } as const;
   }
@@ -13,8 +12,6 @@ function sslConfig() {
 import type { QueryResultRow } from 'pg';
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL, // אם יש
-  // אם אין DATABASE_URL, pg יקרא משתני סביבה PGHOST וכו'
-//   ssl: { rejectUnauthorized: false }, // לפעמים נדרש ב-Supabase/Production
   ssl: sslConfig(), // <--- פה נכנס התנאי
 
 });
