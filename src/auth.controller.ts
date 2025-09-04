@@ -1,3 +1,5 @@
+import dns from 'node:dns';
+dns.setDefaultResultOrder('ipv4first');
 import { z } from 'zod';
 import { query } from './utils/db.js';
 import { hashPassword, verifyPassword } from './security.js';
@@ -33,7 +35,7 @@ type DbUser = {
 async function findUserByEmail(email: string): Promise<DbUser | undefined> {
   const sql = `SELECT user_id, email, first_name, last_name, password_hash
                FROM users WHERE email = $1`;
-               
+
   const { rows } = await query<DbUser>(sql, [email]);
   return rows[0];
 }
@@ -57,9 +59,11 @@ export async function checkEmailExists(req: any, res: any) {
     const existing = await findUserByEmail(email);
     return res.json({ ok: true, exists: !!existing, source: existing ? 'db' : null });
   } catch (e: any) {
-    const message = e?.message ?? 'Invalid request';
-    return res.status(400).json({ ok: false, code: 'BAD_REQUEST', message });
+    const isZod = e?.name === 'ZodError';
+    const status = isZod ? 400 : 502; // או 500
+    return res.status(status).json({ ok: false, code: isZod ? 'BAD_REQUEST' : 'DB_UNREACHABLE', message: e?.message });
   }
+
 }
 
 // POST /register
