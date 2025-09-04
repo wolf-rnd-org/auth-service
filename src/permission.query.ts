@@ -1,4 +1,4 @@
-import { query } from '../utils/db.js';
+import { query } from './utils/db.js';
 import type { AppActions, Group } from './types.js';
 
 // קבוצות של משתמש
