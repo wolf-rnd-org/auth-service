@@ -8,6 +8,18 @@ import { hashPassword, verifyPassword } from '../security.js';
 import { HttpError } from '../errors.js';
 import { signJwtHS256, verifyJwtHS256 } from '../utils/jwt.js';
 
+export async function getUsers(_req: any, res: any, _next: any) {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('user_id, email, first_name, last_name');
+    if (error) throw error;
+    return res.json(data ?? []);
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: 'INTERNAL', message: err?.message ?? 'Unexpected error' });
+  }
+}
+
 export async function getUserClaims(userId: number, applicationName: string): Promise<MeResponse> {
   const { data: userRow, error: userErr } = await supabase
     .from('users')
