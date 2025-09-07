@@ -8,6 +8,7 @@ import {
   login,
   logout,
   changePassword,
+  getUsers,
   // exchangeOtt,
   // googleStart,
   // googleCallback,
@@ -22,6 +23,7 @@ r.post('/register', register);
 r.post('/login', login);
 r.post('/logout', logout);
 r.post('/change-password', changePassword);
+r.get('/users', getUsers);
 // r.post('/admin/create-user', createUser);
 
 // Google OAuth (בהמשך)
