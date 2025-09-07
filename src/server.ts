@@ -7,10 +7,33 @@ import { openApiSpec } from './docs/openapi.js';
 
 
 const app = express();
-// Minimal CORS for dev: allow Vite origin and credentials
+
+// CORS: allow credentials and reflect only allowed origins (supports comma-separated list)
+const normalizeOrigin = (value: string): string => {
+  try {
+    const u = new URL(value);
+    // Reconstruct origin without trailing slash or path
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    // Fallback: strip trailing slash
+    return value.replace(/\/$/, '');
+  }
+};
+
+const allowedOriginsRaw = (process.env.CORS_ORIGIN ?? 'http://localhost:5173')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const allowedOrigins = allowedOriginsRaw.map(normalizeOrigin);
+
 app.use((req, res, next) => {
-  const origin = process.env.CORS_ORIGIN ?? 'http://localhost:5173';
-  res.header('Access-Control-Allow-Origin', origin);
+  const requestOrigin = typeof req.headers.origin === 'string' ? normalizeOrigin(req.headers.origin) : '';
+  const allow = requestOrigin && allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0];
+
+  // When sending credentials, do not use '*'
+  if (allow && allow !== '*') {
+    res.header('Access-Control-Allow-Origin', allow);
+  }
   res.header('Vary', 'Origin');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
