@@ -4,16 +4,50 @@ import { z } from 'zod';
 import { supabase } from '../utils/supabase.js';
 import { RegisterSchema, LoginSchema, ChangePasswordSchema } from '../schemas/auth.schemas.js';
 import type { MeResponse } from '../dto/auth.dto.js';
-import { hashPassword, verifyPassword } from '../security.js';
+// Note: hashing removed per request; passwords stored in plaintext (not recommended)
 import { HttpError } from '../errors.js';
 import { signJwtHS256, verifyJwtHS256 } from '../utils/jwt.js';
 
-export async function getUsers(_req: any, res: any, _next: any) {
+export async function getUsers(req: any, res: any, _next: any) {
   try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('user_id, email, first_name, last_name');
-    if (error) throw error;
+    // Pagination: page (1-based), page_size (max 100)
+    const PageSchema = z.object({
+      page: z.coerce.number().int().min(1).default(1),
+      page_size: z.coerce.number().int().min(1).max(100).default(20),
+    });
+    const { page, page_size } = PageSchema.parse(req.query ?? {});
+    const from = (page - 1) * page_size;
+    const to = from + page_size - 1;
+
+    // Try to include role column if it exists; fallback if not
+    let data: any[] | null = null;
+    let count: number | null = null;
+    {
+      const res1 = await supabase
+        .from('users')
+        .select('user_id, email, first_name, last_name, role_label', { count: 'exact' })
+        .range(from, to);
+      if (!res1.error) {
+        data = res1.data ?? [];
+        count = res1.count ?? 0;
+      } else {
+        // Fallback without role (column may not exist)
+        const res2 = await supabase
+          .from('users')
+          .select('user_id, email, first_name, last_name, password', { count: 'exact' })
+          .range(from, to);
+        if (res2.error) throw res2.error;
+        data = (res2.data ?? []).map((u: any) => ({ ...u, role_label: null }));
+        count = res2.count ?? 0;
+      }
+    }
+
+    // Expose pagination via headers while keeping array body shape for compatibility
+    res.setHeader('X-Total-Count', String(count ?? 0));
+    res.setHeader('X-Page', String(page));
+    res.setHeader('X-Page-Size', String(page_size));
+    res.setHeader('Access-Control-Expose-Headers', 'X-Total-Count, X-Page, X-Page-Size');
+
     return res.json(data ?? []);
   } catch (err: any) {
     return res.status(500).json({ ok: false, error: 'INTERNAL', message: err?.message ?? 'Unexpected error' });
@@ -97,7 +131,7 @@ export async function me(req: any, res: any, _next: any) {
 export async function register(req: any, res: any, _next: any) {
   try {
     const dto = RegisterSchema.parse(req.body);
-    const { first_name, last_name, email, password, role, application_name } = dto;
+    const { first_name, last_name, email, password, role_label, application_name } = dto;
 
     // Check email existence via Supabase
     const { data: existing, error: existsErr } = await supabase
@@ -118,7 +152,7 @@ export async function register(req: any, res: any, _next: any) {
       global_user: [],
       assistant: [],
     };
-    const actions = actionsByRole[role] ?? [];
+    const actions = actionsByRole[role_label] ?? [];
 
     // Resolve application and actions BEFORE creating user to fail fast on config issues
     let applicationId: number | null = null;
@@ -147,11 +181,10 @@ export async function register(req: any, res: any, _next: any) {
       }
     }
 
-    // Create user
-    const password_hash = await hashPassword(password);
+    // Create user (store password as plaintext)
     const { data: newUser, error: insErr } = await supabase
       .from('users')
-      .insert({ email, first_name, last_name, password_hash })
+      .insert({ email, first_name, last_name, password , role_label})
       .select('user_id')
       .single();
     if (insErr) throw insErr;
@@ -187,7 +220,7 @@ export async function register(req: any, res: any, _next: any) {
       }
     }
 
-    return res.json({ ok: true });
+    return res.json({ user_id: userId });
   } catch (err: any) {
     if (err instanceof z.ZodError) {
       return res.status(400).json({ ok: false, error: 'BAD_INPUT', message: err.message });
@@ -203,10 +236,10 @@ export async function login(req: any, res: any, _next: any) {
   try {
     const { email, password } = LoginSchema.parse(req.body);
 
-    // Fetch user by email including password_hash
+    // Fetch user by email including password
     const { data: user, error: userErr } = await supabase
       .from('users')
-      .select('user_id, email, first_name, last_name, password_hash')
+      .select('user_id, email, first_name, last_name, password')
       .eq('email', email)
       .maybeSingle();
     if (userErr) throw userErr;
@@ -214,8 +247,8 @@ export async function login(req: any, res: any, _next: any) {
       return res.status(401).json({ ok: false, error: 'UNAUTHORIZED', message: 'Invalid credentials' });
     }
 
-    // Verify password
-    const ok = await verifyPassword(password, user.password_hash);
+    // Verify password (plaintext comparison)
+    const ok = password === user.password;
     if (!ok) {
       return res.status(401).json({ ok: false, error: 'UNAUTHORIZED', message: 'Invalid credentials' });
     }
@@ -263,10 +296,10 @@ export async function changePassword(req: any, res: any, _next: any) {
   try {
     const { email, current_password, new_password } = ChangePasswordSchema.parse(req.body);
 
-    // Fetch user with password_hash
+    // Fetch user with password
     const { data: user, error: userErr } = await supabase
       .from('users')
-      .select('user_id, password_hash')
+      .select('user_id, password')
       .eq('email', email)
       .maybeSingle();
     if (userErr) throw userErr;
@@ -274,17 +307,17 @@ export async function changePassword(req: any, res: any, _next: any) {
       return res.status(401).json({ ok: false, error: 'UNAUTHORIZED', message: 'Invalid credentials' });
     }
 
-    // Verify current password
-    const ok = await verifyPassword(current_password, user.password_hash);
+    // Verify current password (plaintext comparison)
+    const ok = current_password === user.password;
     if (!ok) {
       return res.status(401).json({ ok: false, error: 'UNAUTHORIZED', message: 'Invalid credentials' });
     }
 
-    // Hash new password and update
-    const password_hash = await hashPassword(new_password);
+    // Update new password as plaintext
+    const passwordHashed2 = new_password;
     const { error: updErr } = await supabase
       .from('users')
-      .update({ password_hash })
+      .update({ password: passwordHashed2 })
       .eq('user_id', user.user_id);
     if (updErr) throw updErr;
 

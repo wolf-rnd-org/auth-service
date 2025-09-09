@@ -5,7 +5,7 @@ export const RegisterSchema = z.object({
   last_name: z.string().min(1),
   email: z.string().email(),
   password: z.string().min(6),
-  role: z.enum(['accountant', 'regular_user', 'global_user', 'assistant', 'admin']),
+  role_label: z.enum(['accountant', 'regular_user', 'global_user', 'assistant', 'admin']),
   application_name: z.string().default('BUDGETS'),
 });
 

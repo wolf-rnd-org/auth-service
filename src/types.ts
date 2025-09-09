@@ -3,7 +3,7 @@ export type UserRow = {
   email: string;
   first_name: string | null;
   last_name: string | null;
-  password_hash: string;
+  password: string; // hashed password
   created_at: string | Date;
   updated_at: string | Date;
 };
