@@ -159,13 +159,13 @@ export const openApiSpec = {
       },
       RegisterRequest: {
         type: 'object',
-        required: ['first_name', 'last_name', 'email', 'password', 'role'],
+        required: ['first_name', 'last_name', 'email', 'password', 'role_label'],
         properties: {
           first_name: { type: 'string' },
           last_name: { type: 'string' },
           email: { type: 'string', format: 'email' },
           password: { type: 'string', minLength: 6 },
-          role: { type: 'string', enum: ['accountant', 'regular_user', 'global_user', 'assistant', 'admin'] },
+          role_label: { type: 'string', enum: ['accountant', 'regular_user', 'global_user', 'assistant', 'admin'] },
           application_name: { type: 'string', default: 'BUDGETS' },
         },
       },
