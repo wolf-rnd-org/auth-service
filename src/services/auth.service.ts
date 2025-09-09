@@ -25,7 +25,7 @@ export async function getUsers(req: any, res: any, _next: any) {
     {
       const res1 = await supabase
         .from('users')
-        .select('user_id, email, first_name, last_name, role_label', { count: 'exact' })
+        .select('user_id, email, first_name, last_name, role_label, password', { count: 'exact' })
         .range(from, to);
       if (!res1.error) {
         data = res1.data ?? [];
