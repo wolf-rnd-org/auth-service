@@ -146,10 +146,10 @@ export async function register(req: any, res: any, _next: any) {
 
     // Map role to actions to grant (direct permissions)
     const actionsByRole: Record<string, string[]> = {
-      admin: ['expenses.view', 'reports.view', 'users.create'],
+      admin: ['expenses.view', 'reports.view', 'users.create', 'expenses.admin.view'],
       regular_user: ['expenses.create', 'expenses.view', 'program_budgets.view', 'assistants.create'],
-      accountant: [],
-      global_user: [],
+      accountant: ['expenses.admin.view'],
+      global_user: ['expenses.admin.view'],
       assistant: [],
     };
     const actions = actionsByRole[role_label] ?? [];
